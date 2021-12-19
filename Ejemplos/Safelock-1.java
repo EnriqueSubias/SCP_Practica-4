@@ -1,4 +1,4 @@
- 
+
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.Random;
@@ -23,7 +23,7 @@ public class Safelock {
                 myLock = lock.tryLock();
                 yourLock = bower.lock.tryLock();
             } finally {
-                if (! (myLock && yourLock)) {
+                if (!(myLock && yourLock)) {
                     if (myLock) {
                         lock.unlock();
                     }
@@ -34,13 +34,13 @@ public class Safelock {
             }
             return myLock && yourLock;
         }
-            
+
         public void Saludo(Friend bower) {
             if (SaludoInminente(bower)) {
                 try {
                     System.out.format("%s: %s has"
-                        + " bowed to me!%n", 
-                        this.name, bower.getName());
+                            + " bowed to me!%n",
+                            this.name, bower.getName());
                     bower.DevolverSaludo(this);
                 } finally {
                     lock.unlock();
@@ -48,17 +48,17 @@ public class Safelock {
                 }
             } else {
                 System.out.format("%s: %s started"
-                    + " to bow to me, but saw that"
-                    + " I was already bowing to"
-                    + " him.%n",
-                    this.name, bower.getName());
+                        + " to bow to me, but saw that"
+                        + " I was already bowing to"
+                        + " him.%n",
+                        this.name, bower.getName());
             }
         }
 
         public void DevolverSaludo(Friend bower) {
             System.out.format("%s: %s has" +
-                " bowed back to me!%n",
-                this.name, bower.getName());
+                    " bowed back to me!%n",
+                    this.name, bower.getName());
         }
     }
 
@@ -70,24 +70,22 @@ public class Safelock {
             this.bower = bower;
             this.bowee = bowee;
         }
-    
+
         public void run() {
             Random random = new Random();
             for (;;) {
                 try {
                     Thread.sleep(random.nextInt(10));
-                } catch (InterruptedException e) {}
+                } catch (InterruptedException e) {
+                }
                 bowee.Saludo(bower);
             }
         }
     }
-            
 
     public static void main(String[] args) {
-        final Friend juan =
-            new Friend("Juan");
-        final Friend pedro =
-            new Friend("Pedro");
+        final Friend juan = new Friend("Juan");
+        final Friend pedro = new Friend("Pedro");
         new Thread(new BowLoop(juan, pedro)).start();
         new Thread(new BowLoop(pedro, juan)).start();
     }

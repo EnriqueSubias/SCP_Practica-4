@@ -1,6 +1,9 @@
 import java.io.File;
 import java.util.Collection;
 import java.util.Vector;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 abstract class MapReduce {
 	public static final boolean DEBUG = false;
@@ -8,7 +11,21 @@ abstract class MapReduce {
 	private String InputPath;
 	private String OutputPath;
 	private int nfiles;
+	int count = 1;
+	int seconPart = 0;
 
+
+	// Split Statistics (Por cada thread)
+	int split_numInputFiles = 0; // (Global) Numero de ficheros leidos
+	int split_TotalbytesReaded = 0; // Numero total de bytes leidos
+	int split_TotalnumLinesReaded = 0; // Numero de lineas leidas
+	int split_TotalnumTuples = 0; // Numero de tuplas de entrada generadas
+
+	// Map Statistics (Por cada thread)
+	int map_numInputTuples = 0; // Numero de tuplas de entrada procesadas
+	int map_bytesProcessed = 0; // Numero de bytes procesados
+	int map_numOutputTuples = 0; // Numero de tuplas de salida generadas
+	private final Lock lock = new ReentrantLock();
 	private Vector<Map> Mappers = new Vector<Map>();
 	private Vector<Reduce> Reducers = new Vector<Reduce>();
 
@@ -72,7 +89,8 @@ abstract class MapReduce {
 					System.out.println("Input path " + listOfFiles[i].getPath());
 					try {
 						map[i] = new Map(this);
-						thr1[i] = new Thread(new Fases_Concurentes_1(map[i], listOfFiles[i].getAbsolutePath()));
+						thr1[i] = new Thread(
+								new Fases_Concurentes_1(map[i], listOfFiles[i].getAbsolutePath()));
 						thr1[i].start();
 					} catch (RuntimeException e) { // Fin //
 						Error.showError("Error Create thread " + e + " fase 1");
@@ -105,7 +123,7 @@ abstract class MapReduce {
 
 		// if (Suffle() != Error.COk)
 		// Error.showError("MapReduce::Run-Error Merge");
-		Thread thr[];
+		/*Thread thr[];
 		thr = new Thread[Reducers.size()];
 		System.out.println("\n\u001B[32mProcesando Fase 2 con " + Reducers.size() + " threads...\033[0m");
 
@@ -124,7 +142,7 @@ abstract class MapReduce {
 			} catch (InterruptedException e) { // Fin //
 				Error.showError("Error Join thread " + e + " fase 2");
 			}
-		}
+		}*/
 		// if (Reduces() != Error.COk)
 		// Error.showError("MapReduce::Run-Error Reduce");
 		System.out.println("\n");
@@ -142,26 +160,52 @@ abstract class MapReduce {
 
 		@Override
 		public void run() {
-			System.out.println("Split: thread " + Thread.currentThread().getId());
-			if (Split(this.splitPath, this.map) == Error.COk) {
-				System.out.println("Map: thread " + Thread.currentThread().getId());
-				if (Maps(map) == Error.COk) {
-					System.out.println("Suffle: thread " + Thread.currentThread().getId());
-					if (Suffle(map) == Error.COk) {
 
-					} else {
-						Error.showError("MapReduce::Suffle run error");
-					}
-				} else {
-					Error.showError("MapReduce::Maps run error");
-				}
-			} else {
+			// **** Split *****
+			System.out.println("Split: thread " + Thread.currentThread().getId());
+			if (Split(this.splitPath, this.map) != Error.COk) {
 				Error.showError("MapReduce::Split run error");
+			}
+
+			System.out.println(this.map.PrintSplit());
+			printTotalSplit(this.map.GetSplit_bytesReaded(), this.map.GetSplit_numLinesReaded(),
+					this.map.GetSplit_numTuples());
+
+			// **** Map *****
+			System.out.println("Map: thread " + Thread.currentThread().getId());
+			if (Maps(map) != Error.COk) {
+				Error.showError("MapReduce::Maps run error");
+			}
+			System.out.println(this.map.PrintMap());
+			printTotalMap(this.map.GetMap_numInputTuples(),this.map.GetMap_bytesProcessed(),this.map.GetMap_numOutputTuples());
+
+			synchronized(Mappers){
+				AddMap(this.map);
+			}
+			lock.lock();
+			if (seconPart < Reducers.size()){
+				
+				seconPart++;
+				lock.unlock();
+				//System.out.print("Esto es el Count: "+count);
+				// **** Suffle *****
+				System.out.println("Suffle: thread " + Thread.currentThread().getId());
+				if (Suffle() != Error.COk) {
+					Error.showError("MapReduce::Suffle run error");
+				}
+				printTotalSuffle();
+
+				// **** Reducer ****
+				if (Reduces() != Error.COk){
+					Error.showError("MapReduce::Reduce run error");
+				}
+			}else{
+				lock.unlock();
 			}
 		}
 	}
 
-	public class Fases_Concurentes_2 implements Runnable {
+	/*public class Fases_Concurentes_2 implements Runnable {
 		int num_reducer;
 
 		public Fases_Concurentes_2(int num_reducer) {
@@ -174,7 +218,7 @@ abstract class MapReduce {
 			if (Reduces(num_reducer) != Error.COk)
 				Error.showError("MapReduce::Reduce run error");
 		}
-	}
+	}*/
 
 	// Genera y lee diferentes splits: 1 split por fichero.
 	// Versión secuencial: asume que un único Map va a procesar todos los splits.
@@ -196,11 +240,122 @@ abstract class MapReduce {
 		return (Error.CError);
 	}
 
+	synchronized public int printTotalSuffle() {
+
+		if (count < Reducers.size()-1) {
+			lock.lock();
+			count++;
+			lock.unlock();
+			//System.out.println("Count: " + count + " de nfiles:" + nfiles);
+			try {
+				wait();
+			} catch (Exception e) {
+				System.out.println(e);
+			}		
+		} else {
+			notifyAll();
+			count = 1;
+		}
+		return 0;
+	}
+
+	synchronized public int printTotalSplit(int bytes, int lines, int tuples) {
+
+		this.split_TotalbytesReaded += bytes;
+		this.split_TotalnumLinesReaded += lines;
+		this.split_TotalnumTuples += tuples;
+		if (count < nfiles) {
+			lock.lock();
+			count++;
+			lock.unlock();
+			//System.out.println("Count: " + count + " de nfiles:" + nfiles);
+			try {
+				wait();
+			} catch (Exception e) {
+				System.out.println(e);
+			}		
+		} else {
+			System.out.println("Total Split  -> NTotalArchvios:" + nfiles + "   \tbytesReaded:" + this.split_TotalbytesReaded + "  \tnumLinesReaded:" + this.split_TotalnumLinesReaded + "  \tnumTuples:" + this.split_TotalnumTuples);
+			notifyAll();
+			count = 1;
+		}
+		return 0;
+	}
+
+	synchronized public int printTotalMap(int inputTuples, int BytesProc, int OutputTuples) {
+		this.map_numInputTuples += inputTuples;
+		this.map_bytesProcessed += BytesProc;
+		this.map_numOutputTuples += OutputTuples;
+		if (count < nfiles) {
+			lock.lock();
+			count++;
+			lock.unlock();
+			System.out.print("MAP Contador: " + count + "\t");
+			//System.out.println("Count: " + count + " de nfiles:" + nfiles);
+			try {
+				wait();
+			} catch (Exception e) {
+				System.out.println(e);
+			}		
+		} else {
+			System.out.println("Total Map  -> NTotalArchvios:" + nfiles + "   \tInputTuples:" + this.map_numInputTuples + "  \tBytesReader:" + this.map_bytesProcessed + "  \tOutputTuples:" + this.map_numOutputTuples);
+			notifyAll();
+			count = 0;
+		}
+		return 0;
+	}
+
 	// Ordena y junta todas las tuplas de salida de los maps. Utiliza una función de
 	// hash como
 	// función de partición, para distribuir las claves entre los posibles reducers.
 	// Utiliza un multimap para realizar la ordenación/unión.
-	private Error Suffle(Map map) {
+	private Error Suffle() {
+
+		while(Mappers.size() != 0){
+			Map m;
+			synchronized(Mappers){
+				m = Mappers.get(Mappers.size()-1);
+				Mappers.remove(Mappers.size()-1);
+			}
+			for (String key : m.GetOutput().keySet()) {
+			// Calcular a que reducer le corresponde está clave:
+			// System.out.println("key.hashCode() " + key +" "+ key.hashCode() + "
+			// Reducers.size() " + Reducers.size() + " >>>> "+
+			// Thread.currentThread().getId());
+			//System.out.println("REDUCERRRRRRRRRR " + Reducers.size());
+			int r = Math.abs(key.hashCode()) % Reducers.size();
+			// r no puede ser negativo, ya que el numero de reducer son 0, 1, 2, 3...
+			if (MapReduce.DEBUG) { //
+				System.err.println("DEBUG::MapReduce::Suffle merge key " + key + " to reduce " + r);
+				// System.out.println("DEBUG::MapReduce::Suffle merge key " + key + " to reduce
+				// " + r + " >>>> " + Thread.currentThread().getId());
+				// Añadir todas las tuplas de la clave al reducer correspondiente.
+			}
+			//synchronized(Reducers.get(r)){
+				Reducers.get(r).AddInputKeys(key, m.GetOutput().get(key));
+			//}
+			}
+			m.GetOutput().clear();
+		}
+		
+		return (Error.COk);
+	}
+
+	private Error Reduces() {
+		while(Reducers.size() != 0){
+			Reduce red;
+			synchronized(Reducers){
+				red = Reducers.get(Reducers.size()-1);
+				Reducers.remove(Reducers.size()-1);
+			}
+			if (red.Run() != Error.COk)
+				Error.showError("MapReduce::Reduce Run error.\n");
+		}
+		return (Error.COk);
+	}
+
+
+	/*private Error Suffle(Map map) {
 
 		for (String key : map.GetOutput().keySet()) {
 			// Calcular a que reducer le corresponde está clave:
@@ -222,14 +377,14 @@ abstract class MapReduce {
 		}
 		map.GetOutput().clear();
 		return (Error.COk);
-	}
+	}*/
 
 	// Ejecuta cada uno de los Reducers.
-	private Error Reduces(int num_reducer) {
+	/*private Error Reduces(int num_reducer) {
 		if (Reducers.get(num_reducer).Run() != Error.COk)
 			Error.showError("MapReduce::Reduce Run error.\n");
 		return (Error.COk);
-	}
+	}*/
 
 	public Error Reduce(Reduce reduce, String key, Collection<Integer> values) {
 		System.err.println("MapReduce::Reduce  -> ERROR Reduce must be override.");

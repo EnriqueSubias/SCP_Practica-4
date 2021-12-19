@@ -36,6 +36,18 @@ public class Map {
 	private ListMultimap<String, Integer> Output = Multimaps
 			.synchronizedListMultimap(ArrayListMultimap.<String, Integer>create());
 
+	// Split Statistics (Por cada thread)
+	int split_numInputFiles = 0; // (Global) Numero de ficheros leidos
+	String fichero = "";
+	int split_bytesReaded = 0; // Numero total de bytes leidos
+	int split_numLinesReaded = 0; // Numero de lineas leidas
+	int split_numTuples = 0; // Numero de tuplas de entrada generadas
+
+	// Map Statistics (Por cada thread)
+	int map_numInputTuples = 0; // Numero de tuplas de entrada procesadas
+	int map_bytesProcessed = 0; // Numero de bytes procesados
+	int map_numOutputTuples = 0; // Numero de tuplas de salida generadas
+
 	public Map(MapReduce mapr) {
 		mapReduce = mapr;
 	}
@@ -59,6 +71,7 @@ public class Map {
 		FileInputStream fis;
 		try {
 			fis = new FileInputStream(fileName);
+			this.fichero = fileName;
 		} catch (FileNotFoundException e) {
 			System.err.println("Map::ERROR File " + fileName + " not found.");
 			e.printStackTrace();
@@ -77,6 +90,8 @@ public class Map {
 				// System.err.println("DEBUG::Map input " + Offset + " -> " + line);
 				AddInput(new MapInputTuple(Offset, line));
 				Offset += line.length();
+				split_numLinesReaded = split_numLinesReaded + 1;
+				split_bytesReaded = split_bytesReaded + line.length();
 			}
 		} catch (IOException e) {
 			System.err.println("Map::ERROR Reading file " + fileName + ".");
@@ -89,11 +104,11 @@ public class Map {
 			e.printStackTrace();
 			return (Error.CErrorReadingFile);
 		}
-		//System.out.println("***** Finalizacion Map thread :  -->" + Thread.currentThread().getId()); // Me vale vergas
 		return (Error.COk);
 	}
 
 	public void AddInput(MapInputTuple tuple) {
+		split_numTuples++;
 		Input.add(tuple);
 	}
 
@@ -108,6 +123,7 @@ public class Map {
 				System.err.println(
 						"DEBUG::Map process input tuple " + Input.get(0).getKey() + " -> " + Input.get(0).getValue());
 			err = mapReduce.Map(this, Input.get(0));
+			map_numInputTuples +=1;
 			if (err != Error.COk)
 				return (err);
 
@@ -123,7 +139,58 @@ public class Map {
 		if (MapReduce.DEBUG)
 			System.err.println(
 					"DEBUG::Map emit result " + key + " -> " + value + " >>>> " + Thread.currentThread().getId());
+		byte[] array1 = key.getBytes();
+		map_bytesProcessed += array1.length;
+		map_numOutputTuples += 1;
 		Output.put(key, new Integer(value));
+	}
+
+	public int GetSplit_bytesReaded()
+	{
+		return split_bytesReaded;
+	}
+
+	public int GetSplit_numLinesReaded()
+	{
+		return split_numLinesReaded;
+	}
+
+	public int GetSplit_numTuples()
+	{
+		return split_numTuples;
+	}
+
+	public int GetMap_numInputTuples()
+	{
+		return map_numInputTuples;
+	}
+
+	public int GetMap_bytesProcessed()
+	{
+		return map_bytesProcessed;
+	}
+
+	public int GetMap_numOutputTuples()
+	{
+		return map_numOutputTuples;
+	}
+
+	public String PrintSplit() {
+		// printf("Split -> Thread:%ld ConArchivo:%s \tbytesReaded:%i
+		// \tnumLinesReaded:%i \tnumTuples:%i \n",
+		String print = "Split -> Thread:" + Thread.currentThread().getId() + " Archivo:"
+				+ " bytesReaded:" + this.split_bytesReaded + " numLinesReaded:" + this.split_numLinesReaded
+				+ " numTuples:" + this.split_numTuples;
+		return print;
+	}
+
+	public String PrintMap() {
+		// printf("Split -> Thread:%ld ConArchivo:%s \tbytesReaded:%i
+		// \tnumLinesReaded:%i \tnumTuples:%i \n",
+		String print = "Map -> Thread:" + Thread.currentThread().getId() + " Archivo:"
+				+ " InputTuples:" + this.map_numInputTuples + " BytesReader:" + this.map_bytesProcessed
+				+ " OutputTuples:" + this.map_numOutputTuples;
+		return print;
 	}
 
 }
