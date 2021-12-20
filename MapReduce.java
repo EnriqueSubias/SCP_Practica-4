@@ -1,3 +1,11 @@
+/* ---------------------------------------------------------------
+Práctica 4.
+Código fuente: MapReduce.java
+Grau Informàtica
+X5707036T Robert Dragos Trif Apoltan
+49271860T Enrique Alejo Subías Melgar
+--------------------------------------------------------------- */
+
 import java.io.File;
 import java.util.Collection;
 import java.util.Vector;
@@ -135,36 +143,6 @@ abstract class MapReduce {
 				Error.showError("Error Join thread " + e + " fase 1");
 			}
 		}
-		// if (Maps() != Error.COk)
-		// Error.showError("MapReduce::Run-Error Map");
-
-		// if (Suffle() != Error.COk)
-		// Error.showError("MapReduce::Run-Error Merge");
-		/*
-		 * Thread thr[];
-		 * thr = new Thread[Reducers.size()];
-		 * System.out.println("\n\u001B[32mProcesando Fase 2 con " + Reducers.size() +
-		 * " threads...\033[0m");
-		 * 
-		 * for (int i = 0; i < Reducers.size(); i++) {
-		 * try {
-		 * thr[i] = new Thread(new Fases_Concurentes_2(i));
-		 * thr[i].start();
-		 * } catch (RuntimeException e) { // Fin //
-		 * Error.showError("Error Create thread " + e + " fase 2");
-		 * }
-		 * }
-		 * 
-		 * for (int i = 0; i < Reducers.size(); i++) {
-		 * try {
-		 * thr[i].join();
-		 * } catch (InterruptedException e) { // Fin //
-		 * Error.showError("Error Join thread " + e + " fase 2");
-		 * }
-		 * }
-		 */
-		// if (Reduces() != Error.COk)
-		// Error.showError("MapReduce::Run-Error Reduce");
 		System.out.println("\n");
 		return (Error.COk);
 	}
@@ -239,23 +217,6 @@ abstract class MapReduce {
 		}
 	}
 
-	/*
-	 * public class Fases_Concurentes_2 implements Runnable {
-	 * int num_reducer;
-	 * 
-	 * public Fases_Concurentes_2(int num_reducer) {
-	 * this.num_reducer = num_reducer;
-	 * }
-	 * 
-	 * @Override
-	 * public void run() {
-	 * System.out.println("Reduces: thread " + Thread.currentThread().getId());
-	 * if (Reduces(num_reducer) != Error.COk)
-	 * Error.showError("MapReduce::Reduce run error");
-	 * }
-	 * }
-	 */
-
 	// Genera y lee diferentes splits: 1 split por fichero.
 	// Versión secuencial: asume que un único Map va a procesar todos los splits.
 	private Error Split(String input, Map map) {
@@ -281,18 +242,23 @@ abstract class MapReduce {
 		this.split_TotalbytesReaded += map.GetSplit_bytesReaded();
 		this.split_TotalnumLinesReaded += map.GetSplit_numLinesReaded();
 		this.split_TotalnumTuples += map.GetSplit_numTuples();
+
+		lock.lock();
 		if (count < nfiles) {
-			lock.lock();
-			count++;
-			lock.unlock();
+			try{
+				count++;
+			}finally{
+				lock.unlock();
+			}
 			// System.out.println("Count: " + count + " de nfiles:" + nfiles);
 			System.out.println(map.PrintSplit());
 			try {
 				wait();
-			} catch (Exception e) {
+			} catch (InterruptedException e) {
 				System.out.println(e);
 			}
 		} else {
+			lock.unlock();
 			System.out.println(map.PrintSplit());
 			System.out.println("Total Split  -> NTotalArchvios:" + nfiles + "   \tbytesReaded:"
 					+ this.split_TotalbytesReaded + "  \tnumLinesReaded:" + this.split_TotalnumLinesReaded
@@ -307,19 +273,23 @@ abstract class MapReduce {
 		this.map_numInputTuples += map.GetMap_numInputTuples();
 		this.map_bytesProcessed += map.GetMap_bytesProcessed();
 		this.map_numOutputTuples += map.GetMap_numOutputTuples();
+		lock.lock();
 		if (count < nfiles) {
-			lock.lock();
-			count++;
-			lock.unlock();
+			try{
+				count++;
+			}finally{
+				lock.unlock();
+			}
 			// System.out.print("MAP Contador: " + count + "\t");
 			// System.out.println("Count: " + count + " de nfiles:" + nfiles);
 			System.out.println(map.PrintMap());
 			try {
 				wait();
-			} catch (Exception e) {
+			} catch (InterruptedException e) {
 				System.out.println(e);
 			}
 		} else {
+			lock.unlock();
 			System.out.println(map.PrintMap());
 			System.out.println("Total Map  -> NTotalMaps" + nfiles + "   \tInputTuples:" + this.map_numInputTuples
 					+ "  \tBytesReader:" + this.map_bytesProcessed + "  \tOutputTuples:" + this.map_numOutputTuples
@@ -331,21 +301,24 @@ abstract class MapReduce {
 	}
 
 	public synchronized int printTotalSuffle() {
-
+		lock.lock();
 		if (count < Reducers.size() - 1) {
-			lock.lock();
-			count++;
-			lock.unlock();
+			try{
+				count++;
+			}finally{
+				lock.unlock();
+			}
 			suffle_numOutputTuples += Reducers.get(count).Getsuffle_numOutputTuples();
 			suffle_numKeys += Reducers.get(count).Getsuffle_numKeys();
 			System.out.println(Reducers.get(count).PrintSuffle());
 			// System.out.println("Count: " + count + " de nfiles:" + nfiles);
 			try {
 				wait();
-			} catch (Exception e) {
+			} catch (InterruptedException e) {
 				System.out.println(e);
 			}
 		} else {
+			lock.unlock();
 			System.out.println(Reducers.get(count).PrintSuffle());
 			suffle_numOutputTuples += Reducers.get(count).Getsuffle_numOutputTuples();
 			suffle_numKeys += Reducers.get(count).Getsuffle_numKeys();
@@ -358,18 +331,24 @@ abstract class MapReduce {
 	}
 
 	public synchronized int printTotalReduce(int nreducers) {
+		
+		lock.lock();
 		if (count < nreducers) {
-			lock.lock();
-			count++;
-			lock.unlock();
+			try{
+				count++;
+			}finally{
+				lock.unlock();
+			}
 			// System.out.print("MAP Contador: " + count + "\t");
 			// System.out.println("Count: " + count + " de nfiles:" + nfiles);
 			try {
 				wait();
-			} catch (Exception e) {
-				System.out.println(e);
+			} catch (InterruptedException e) {
+				//throw new InterruptedException(e.toString());
+				System.out.println(e.toString());
 			}
 		} else {
+			lock.unlock();
 			System.out.println(
 					"Reduce Total -> numKeys: " + reduce_numKeys + " numOccurences: " + reduce_numOccurences
 							+ " averageOccurencesPerKey " + reduce_averageOccurKey / nreducers
@@ -384,13 +363,18 @@ abstract class MapReduce {
 	// función de partición, para distribuir las claves entre los posibles reducers.
 	// Utiliza un multimap para realizar la ordenación/unión.
 	private Error Suffle() {
-
+		try {
+			semReduce.acquire();
+		} catch ( InterruptedException ex) {
+			System.out.println(ex);
+		}
 		while (Mappers.size() != 0) {
 			Map m;
 			synchronized (Mappers) {
 				m = Mappers.get(Mappers.size() - 1);
 				Mappers.remove(Mappers.size() - 1);
 			}
+			semReduce.release();
 			for (String key : m.GetOutput().keySet()) {
 				// Calcular a que reducer le corresponde está clave:
 				// System.out.println("key.hashCode() " + key +" "+ key.hashCode() + "
@@ -419,8 +403,8 @@ abstract class MapReduce {
 
 		try {
 			semReduce.acquire();
-		} catch (Exception e) {
-			System.out.println(e);
+		} catch (InterruptedException ex) {
+			System.out.println(ex);
 		}
 		while (Reducers.size() != 0) {
 			Reduce red;
@@ -432,12 +416,15 @@ abstract class MapReduce {
 			if (red.Run() != Error.COk)
 				Error.showError("MapReduce::Reduce Run error.\n");
 			lock.lock();
-			System.out.println(red.PrintReducer());
-			reduce_numKeys += red.Getreduce_numKeys();
-			reduce_numOccurences += red.Getreduce_numOccurences();
-			reduce_averageOccurKey += red.Getreduce_averageOccurKey();
-			reduce_numOutputBytes += red.Getreduce_numOutputBytes();
-			lock.unlock();
+			try{
+				System.out.println(red.PrintReducer());
+				reduce_numKeys += red.Getreduce_numKeys();
+				reduce_numOccurences += red.Getreduce_numOccurences();
+				reduce_averageOccurKey += red.Getreduce_averageOccurKey();
+				reduce_numOutputBytes += red.Getreduce_numOutputBytes();
+			}finally{
+				lock.unlock();
+			}
 		}
 		return (Error.COk);
 	}

@@ -1,3 +1,10 @@
+/* ---------------------------------------------------------------
+Práctica 4.
+Código fuente: Map.java
+Grau Informàtica
+X5707036T Robert Dragos Trif Apoltan
+49271860T Enrique Alejo Subías Melgar
+--------------------------------------------------------------- */
 
 import java.io.*;
 import java.util.List;
