@@ -14,6 +14,16 @@ class Reduce {
 	private ListMultimap<String, Integer> Input = Multimaps
 			.synchronizedListMultimap(ArrayListMultimap.<String, Integer>create());
 
+	// Suffle Statiscis
+	int suffle_numOutputTuples = 0; // Numero de tuplas de salida procesadas
+	int suffle_numKeys = 0; // Numero de claves procesadas
+
+	// Reduce Statiscis
+	int reduce_numKeys = 0; // Numero de claves diferentes procesadas
+	int reduce_numOccurences = 0; // Numero de ocurrencias procesadas
+	float reduce_averageOccurKey = 0; // Valor medio ocurrencias/clave
+	int reduce_numOutputBytes = 0; // Numero bytes escritos de salida
+
 	// Constructor para una tarea Reduce, se le pasa la función que reducción que
 	// tiene que
 	// ejecutar para cada tupla de entrada y el nombre del fichero de salida en
@@ -39,14 +49,16 @@ class Reduce {
 	// Función para añadir las tuplas de entrada para la función de redución en
 	// forma de lista de
 	// tuplas (key,value).
-	public void AddInputKeys(String key, Collection<Integer> values) {
+	public synchronized void AddInputKeys(String key, Collection<Integer> values) {
 		for (Integer value : values)
 			AddInput(key, value);
+		suffle_numKeys++;
 	}
 
-	private void AddInput(String key, Integer value) {
+	private synchronized void AddInput(String key, Integer value) {
 		if (MapReduce.DEBUG)
 			System.err.println("DEBUG::Reduce add input " + key + "-> " + value);
+		suffle_numOutputTuples++;
 		Input.put(key, value);
 	}
 
@@ -63,12 +75,10 @@ class Reduce {
 			Error err = mapReduce.Reduce(this, key, Input.get(key));
 			if (err != Error.COk)
 				return (err);
-
 			keyIterator.remove();
 		}
-
 		Finish();
-
+		reduce_averageOccurKey = (float) (reduce_numKeys) / (float) (reduce_numOccurences);
 		return (Error.COk);
 	}
 
@@ -77,6 +87,48 @@ class Reduce {
 		// System.out.println("Write in document: " + key + " >>>> " +
 		// Thread.currentThread().getId());
 		OutputFile.write(key + " " + value + "\n");
+		byte[] array1 = key.getBytes();
+		reduce_numOutputBytes += array1.length;
+		reduce_numKeys++;
+		reduce_numOccurences += value;
+	}
+
+	public String PrintSuffle() {
+		// printf("Split -> Thread:%ld ConArchivo:%s \tbytesReaded:%i
+		// \tnumLinesReaded:%i \tnumTuples:%i \n",
+		String print = "Suffle  -> numOutputTuples: " + suffle_numOutputTuples + " tnumProcessedKeys: "
+				+ suffle_numKeys;
+		return print;
+	}
+
+	public String PrintReducer() {
+		String print = "Reduce  -> numKeys: " + reduce_numKeys + " numOccurences: " + reduce_numOccurences
+				+ " averageOccurencesPerKey " + reduce_averageOccurKey + " numOutputBytes " + reduce_numOutputBytes;
+		return print;
+	}
+
+	public int Getsuffle_numOutputTuples() {
+		return suffle_numOutputTuples;
+	}
+
+	public int Getsuffle_numKeys() {
+		return suffle_numKeys;
+	}
+
+	public int Getreduce_numKeys() {
+		return reduce_numKeys;
+	}
+
+	public int Getreduce_numOccurences() {
+		return reduce_numOccurences;
+	}
+
+	public float Getreduce_averageOccurKey() {
+		return reduce_averageOccurKey;
+	}
+
+	public int Getreduce_numOutputBytes() {
+		return reduce_numOutputBytes;
 	}
 
 }

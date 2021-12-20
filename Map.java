@@ -66,7 +66,7 @@ public class Map {
 	// Lee fichero de entrada (split) línea a línea y lo guarda en una cola del Map
 	// en forma de
 	// tuplas (key,value).
-	public Error ReadFileTuples(String fileName) {
+	synchronized public Error ReadFileTuples(String fileName) {
 		long Offset = 0;
 		FileInputStream fis;
 		try {
@@ -107,7 +107,7 @@ public class Map {
 		return (Error.COk);
 	}
 
-	public void AddInput(MapInputTuple tuple) {
+	synchronized public void AddInput(MapInputTuple tuple) {
 		split_numTuples++;
 		Input.add(tuple);
 	}
@@ -123,7 +123,7 @@ public class Map {
 				System.err.println(
 						"DEBUG::Map process input tuple " + Input.get(0).getKey() + " -> " + Input.get(0).getValue());
 			err = mapReduce.Map(this, Input.get(0));
-			map_numInputTuples +=1;
+			map_numInputTuples += 1;
 			if (err != Error.COk)
 				return (err);
 
@@ -145,40 +145,34 @@ public class Map {
 		Output.put(key, new Integer(value));
 	}
 
-	public int GetSplit_bytesReaded()
-	{
+	public int GetSplit_bytesReaded() {
 		return split_bytesReaded;
 	}
 
-	public int GetSplit_numLinesReaded()
-	{
+	public int GetSplit_numLinesReaded() {
 		return split_numLinesReaded;
 	}
 
-	public int GetSplit_numTuples()
-	{
+	public int GetSplit_numTuples() {
 		return split_numTuples;
 	}
 
-	public int GetMap_numInputTuples()
-	{
+	public int GetMap_numInputTuples() {
 		return map_numInputTuples;
 	}
 
-	public int GetMap_bytesProcessed()
-	{
+	public int GetMap_bytesProcessed() {
 		return map_bytesProcessed;
 	}
 
-	public int GetMap_numOutputTuples()
-	{
+	public int GetMap_numOutputTuples() {
 		return map_numOutputTuples;
 	}
 
 	public String PrintSplit() {
 		// printf("Split -> Thread:%ld ConArchivo:%s \tbytesReaded:%i
 		// \tnumLinesReaded:%i \tnumTuples:%i \n",
-		String print = "Split -> Thread:" + Thread.currentThread().getId() + " Archivo:"
+		String print = "Split -> Thread:" + Thread.currentThread().getId()
 				+ " bytesReaded:" + this.split_bytesReaded + " numLinesReaded:" + this.split_numLinesReaded
 				+ " numTuples:" + this.split_numTuples;
 		return print;
@@ -187,7 +181,7 @@ public class Map {
 	public String PrintMap() {
 		// printf("Split -> Thread:%ld ConArchivo:%s \tbytesReaded:%i
 		// \tnumLinesReaded:%i \tnumTuples:%i \n",
-		String print = "Map -> Thread:" + Thread.currentThread().getId() + " Archivo:"
+		String print = "Map -> Thread:" + Thread.currentThread().getId()
 				+ " InputTuples:" + this.map_numInputTuples + " BytesReader:" + this.map_bytesProcessed
 				+ " OutputTuples:" + this.map_numOutputTuples;
 		return print;
